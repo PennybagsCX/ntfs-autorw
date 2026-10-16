@@ -67,8 +67,23 @@ Run it after each plug-in/reboot. It also converts a Mounty `~/.mounty` mount ba
 
 - **Drive still read-only after install** → macFUSE extension isn't approved: System Settings → Privacy & Security → Allow → restart → replug.
 - **First-time mount takes a few seconds** — the agent waits for FSKit's read-only mount to appear before flipping it. This is normal.
+- **Check what the agent actually did:**
+  ```bash
+  log show --last 30m --style compact | grep -E "ntfs-autorw"
+  ```
+  It logs every scan, candidate, success, and failure — including ntfs-3g's real error output.
 - **A drive you want to stay read-only** — this remounts *every* NTFS volume. Comment out the `CANDS` collection in `ntfs-autorw.sh` to filter by name if needed.
 - **Disclaimer**: always keep backups. You're using the open-source NTFS-3G driver to write to NTFS; treat it like any third-party filesystem driver.
+
+### Debugging lessons (for anyone forking this)
+
+Three failure classes we hit while building this, all of which fail **silently** if you're not careful:
+
+1. **Mount-line parsing** — `mount` output uses `/dev/disk4s1` as the device field, while `diskutil`'s `DeviceIdentifier` is `disk4s1`. Match with the `/dev/` prefix or your "find the current mount" lookups silently return nothing.
+2. **launchd root context** — a root LaunchDaemon has an **empty `TMPDIR`** and a minimal `PATH`. macFUSE helpers and ntfs-3g fail cryptically in that context. Export both explicitly.
+3. **FSKit device claim + renumbering** — after force-unmounting an FSKit volume, the device holds an exclusive claim for a few seconds (`Operation not permitted` / `Resource busy` on open), and the device node can **vanish or renumber**. Re-resolve the device by volume name and retry the mount with a fresh node each attempt.
+
+And the meta-lesson: **never pipe ntfs-3g's stderr to `/dev/null`**. Every failure above was invisible until we captured and logged the actual error output.
 
 ## Tested on
 
