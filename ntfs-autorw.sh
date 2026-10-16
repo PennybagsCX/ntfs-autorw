@@ -89,11 +89,21 @@ for dev in $DEVS; do
   dev="$NEWDEV"
 
   /bin/mkdir -p "/Volumes/$vol"
-  ERR=$("$NTFS3G" "$dev" "/Volumes/$vol" -o local,allow_other,uid=$U,gid=$G,auto_xattr 2>&1 >/dev/null)
-  if [ -z "$ERR" ]; then
-    /usr/bin/logger -t ntfs-autorw "$vol -> /Volumes/$vol read-write ($dev)"
+  # FSKit holds an exclusive claim on the device for a few seconds after unmount —
+  # retry with a freshly resolved device node until it releases (or give up)
+  ERR="pending"; ok=0; att=0
+  while [ $ok -eq 0 ] && [ $att -lt 8 ]; do
+    NEWDEV=$(/usr/sbin/diskutil info "$vol" 2>/dev/null | /usr/bin/awk -F': *' '/Device Node/{print $2; exit}')
+    if [ -n "$NEWDEV" ] && [ -e "$NEWDEV" ]; then
+      ERR=$("$NTFS3G" "$NEWDEV" "/Volumes/$vol" -o local,allow_other,uid=$U,gid=$G,auto_xattr 2>&1 >/dev/null)
+      [ -z "$ERR" ] && ok=1
+    fi
+    att=$((att+1)); [ $ok -eq 0 ] && /bin/sleep 1
+  done
+  if [ $ok -eq 1 ]; then
+    /usr/bin/logger -t ntfs-autorw "$vol -> /Volumes/$vol read-write"
   else
-    /usr/bin/logger -t ntfs-autorw "FAILED remounting $vol at /Volumes/$vol: $ERR"
+    /usr/bin/logger -t ntfs-autorw "FAILED remounting $vol after $att attempts: $ERR"
   fi
 done
 exit 0
