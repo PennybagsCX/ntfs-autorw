@@ -61,7 +61,7 @@ for dev in $DEVS; do
 
   # already mounted read-write at the right place? done.
   if [ "$cur" = "/Volumes/$vol" ]; then
-    /sbin/mount | /usr/bin/grep "^$dev on" | /usr/bin/grep -q read-only || continue
+    /sbin/mount | /usr/bin/grep "^/dev/$dev on" | /usr/bin/grep -q read-only || continue
   fi
 
   # unmount current mount (read-only fskit, or Mounty ~/.mounty) — max 5 rounds
