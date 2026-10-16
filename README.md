@@ -43,6 +43,16 @@ $ mount | grep -i yourdrive
 sudo bash uninstall.sh
 ```
 
+## macOS 26/27 note: use the user-agent variant
+
+On recent macOS, a **system-domain LaunchDaemon** (root, boot-time) can be denied raw-device opens even as root — mounts fail with `Operation not permitted` / `Resource busy` while the identical command run from your session via `sudo` succeeds. If the daemon-installed path doesn't flip your drives, migrate to the **user-agent architecture**:
+
+```bash
+sudo bash migrate-user-agent.sh
+```
+
+This removes the system daemon and instead installs a **user LaunchAgent** (`com.ntfsautorw.watcher`, fires on `/Volumes` changes + at login) that calls the mount script through a **NOPASSWD sudoers entry scoped to exactly that one script**. The mount then runs in your session context — the configuration that demonstrably works. Verified on macOS 26/27, Apple Silicon.
+
 ## How it works
 
 1. launchd `WatchPaths` on `/Volumes` fires **only when a volume mounts/unmounts**
