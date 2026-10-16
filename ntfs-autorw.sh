@@ -43,12 +43,14 @@ try:
         for p in dp.get("Partitions", []):
             if p.get("VolumeName") or "basic data" in (p.get("Content") or "").lower():
                 print(p.get("DeviceIdentifier", ""))
-except Exception:
-    pass' 2>/dev/null
+except Exception as e:
+    sys.stderr.write("ntfs-autorw detection error: %s\n" % e)' 2>/dev/null
 )
+/usr/bin/logger -t ntfs-autorw "scan: $(/bin/echo "$DEVS" | /usr/bin/grep -c .) candidate device(s) [TMPDIR=$TMPDIR]"
 
 for dev in $DEVS; do
-  /usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/grep -q "File System Personality:.*NTFS" || continue
+  /usr/bin/logger -t ntfs-autorw "scan: candidate $dev"
+  /usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/grep -q "File System Personality:.*NTFS" || { /usr/bin/logger -t ntfs-autorw "scan: $dev not NTFS, skip"; continue; }
   vol=$(/usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/awk -F': *' '/Volume Name/{print $2; exit}')
   [ -z "$vol" ] && continue
   cur=$(/sbin/mount | /usr/bin/awk -v d="$dev" '$1==d {print $3}' | /usr/bin/head -1)
