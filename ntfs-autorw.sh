@@ -57,7 +57,7 @@ for dev in $DEVS; do
   /usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/grep -q "File System Personality:.*NTFS" || { /usr/bin/logger -t ntfs-autorw "scan: $dev not NTFS, skip"; continue; }
   vol=$(/usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/awk -F': *' '/Volume Name/{print $2; exit}')
   [ -z "$vol" ] && continue
-  cur=$(/sbin/mount | /usr/bin/awk -v d="$dev" '$1==d {print $3}' | /usr/bin/head -1)
+  cur=$(/sbin/mount | /usr/bin/awk -v d="/dev/$dev" '$1==d {print $3}' | /usr/bin/head -1)
 
   # already mounted read-write at the right place? done.
   if [ "$cur" = "/Volumes/$vol" ]; then
@@ -69,7 +69,7 @@ for dev in $DEVS; do
   while [ -n "$cur" ] && [ $round -lt 5 ]; do
     /usr/sbin/diskutil unmount force "$cur" >/dev/null 2>&1
     /bin/sleep 1
-    cur=$(/sbin/mount | /usr/bin/awk -v d="$dev" '$1==d {print $3}' | /usr/bin/head -1)
+    cur=$(/sbin/mount | /usr/bin/awk -v d="/dev/$dev" '$1==d {print $3}' | /usr/bin/head -1)
     round=$((round+1))
   done
   [ -n "$cur" ] && { /usr/bin/logger -t ntfs-autorw "could not unmount $vol ($cur)"; continue; }
