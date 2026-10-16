@@ -74,6 +74,20 @@ for dev in $DEVS; do
   done
   [ -n "$cur" ] && { /usr/bin/logger -t ntfs-autorw "could not unmount $vol ($cur)"; continue; }
 
+  # FSKit-era unmounts can tear down / renumber the device node — re-resolve by
+  # volume name and wait for the node to exist before handing it to ntfs-3g
+  tries=0; NEWDEV=""
+  while [ -z "$NEWDEV" ] && [ $tries -lt 10 ]; do
+    NEWDEV=$(/usr/sbin/diskutil info "$vol" 2>/dev/null | /usr/bin/awk -F': *' '/Device Node/{print $2; exit}')
+    if [ -n "$NEWDEV" ] && [ -e "$NEWDEV" ]; then break; fi
+    NEWDEV=""; /bin/sleep 1; tries=$((tries+1))
+  done
+  if [ -z "$NEWDEV" ]; then
+    /usr/bin/logger -t ntfs-autorw "device node for $vol disappeared after unmount; giving up"
+    continue
+  fi
+  dev="$NEWDEV"
+
   /bin/mkdir -p "/Volumes/$vol"
   ERR=$("$NTFS3G" "$dev" "/Volumes/$vol" -o local,allow_other,uid=$U,gid=$G,auto_xattr 2>&1 >/dev/null)
   if [ -z "$ERR" ]; then
