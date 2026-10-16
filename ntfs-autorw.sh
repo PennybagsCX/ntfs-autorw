@@ -8,8 +8,12 @@
 # Uninstall: sudo launchctl bootout system/com.ntfsautorw.daemon
 #            sudo rm /Library/LaunchDaemons/com.ntfsautorw.daemon.plist /usr/local/lib/ntfs-autorw.sh
 
-# single-instance lock (RunAtLoad + explicit runs can overlap)
-if ! /bin/mkdir /tmp/ntfs-autorw.lock 2>/dev/null; then exit 0; fi
+# single-instance lock (RunAtLoad + explicit runs can overlap), with stale-lock self-heal
+if ! /bin/mkdir /tmp/ntfs-autorw.lock 2>/dev/null; then
+  # lock exists — if no actual script instance is running, it's stale from a killed run
+  /usr/bin/pgrep -f "[n]tfs-autorw.sh" >/dev/null 2>&1 || /bin/rmdir /tmp/ntfs-autorw.lock 2>/dev/null
+  /bin/mkdir /tmp/ntfs-autorw.lock 2>/dev/null || exit 0
+fi
 trap '/bin/rmdir /tmp/ntfs-autorw.lock 2>/dev/null' EXIT
 
 NTFS3G=/opt/homebrew/bin/ntfs-3g
