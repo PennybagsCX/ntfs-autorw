@@ -19,6 +19,10 @@ trap '/bin/rmdir /tmp/ntfs-autorw.lock 2>/dev/null' EXIT
 NTFS3G=/opt/homebrew/bin/ntfs-3g
 [ -x "$NTFS3G" ] || exit 0
 
+# launchd root context has empty TMPDIR and a minimal PATH; macFUSE helpers need both
+export TMPDIR="${TMPDIR:-/tmp}"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 CONSOLE_USER=$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null) || exit 0
 [ -n "$CONSOLE_USER" ] || exit 0
 OWNER=$(/usr/bin/stat -f '%u:%g' "/Users/$CONSOLE_USER" 2>/dev/null) || exit 0
@@ -71,10 +75,11 @@ for dev in $DEVS; do
   [ -n "$cur" ] && { /usr/bin/logger -t ntfs-autorw "could not unmount $vol ($cur)"; continue; }
 
   /bin/mkdir -p "/Volumes/$vol"
-  if "$NTFS3G" "$dev" "/Volumes/$vol" -o local,allow_other,uid=$U,gid=$G,auto_xattr >/dev/null 2>&1; then
+  ERR=$("$NTFS3G" "$dev" "/Volumes/$vol" -o local,allow_other,uid=$U,gid=$G,auto_xattr 2>&1 >/dev/null)
+  if [ -z "$ERR" ]; then
     /usr/bin/logger -t ntfs-autorw "$vol -> /Volumes/$vol read-write ($dev)"
   else
-    /usr/bin/logger -t ntfs-autorw "FAILED remounting $vol at /Volumes/$vol (check macFUSE)"
+    /usr/bin/logger -t ntfs-autorw "FAILED remounting $vol at /Volumes/$vol: $ERR"
   fi
 done
 exit 0
