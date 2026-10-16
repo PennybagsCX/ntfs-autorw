@@ -28,21 +28,23 @@ while [ $n -lt 3 ]; do
   /bin/sleep 2; n=$((n+1))
 done
 
-# all NTFS devices attached right now (by filesystem personality, mounted or not)
-DEVS=$(/usr/sbin/diskutil list -plist 2>/dev/null | /usr/bin/python3 -c '
+# all NTFS devices attached right now (mounted or not): data partitions with a
+# volume name, confirmed by diskutil's "File System Personality" check
+DEVS=$(
+  /usr/sbin/diskutil list -plist 2>/dev/null | /usr/bin/plutil -convert json -o - - 2>/dev/null | /usr/bin/python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
     for dp in d.get("AllDisksAndPartitions", []):
         for p in dp.get("Partitions", []):
-            fst = (p.get("FilesystemType") or "").lower()
-            ct  = (p.get("Content") or "").lower()
-            if "ntfs" in fst or "ntfs" in ct:
+            if p.get("VolumeName") or "basic data" in (p.get("Content") or "").lower():
                 print(p.get("DeviceIdentifier", ""))
 except Exception:
-    pass' 2>/dev/null)
+    pass' 2>/dev/null
+)
 
 for dev in $DEVS; do
+  /usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/grep -q "File System Personality:.*NTFS" || continue
   vol=$(/usr/sbin/diskutil info "$dev" 2>/dev/null | /usr/bin/awk -F': *' '/Volume Name/{print $2; exit}')
   [ -z "$vol" ] && continue
   cur=$(/sbin/mount | /usr/bin/awk -v d="$dev" '$1==d {print $3}' | /usr/bin/head -1)
